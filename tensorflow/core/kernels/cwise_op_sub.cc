@@ -24,6 +24,7 @@ REGISTER7(BinaryOp, CPU, "Sub", functor::sub, float, Eigen::half, double, int32,
 // int32 version of this op is needed, so explicitly include it.
 REGISTER(BinaryOp, CPU, "Sub", functor::sub, int32);
 #endif  // __ANDROID_TYPES_SLIM__
+
 #if GOOGLE_CUDA
 REGISTER6(BinaryOp, GPU, "Sub", functor::sub, float, Eigen::half, double, int64,
           complex64, complex128);
@@ -40,4 +41,14 @@ REGISTER_KERNEL_BUILDER(Name("Sub")
                         BinaryOp<CPUDevice, functor::sub<int32>>);
 #endif
 
+#ifdef TENSORFLOW_USE_SYCL
+REGISTER3(BinaryOp, SYCL, "Sub", functor::sub, float, double, int64);
+REGISTER_KERNEL_BUILDER(Name("Sub")
+                            .Device(DEVICE_SYCL)
+                            .HostMemory("x")
+                            .HostMemory("y")
+                            .HostMemory("z")
+                            .TypeConstraint<int32>("T"),
+                        BinaryOp<CPUDevice, functor::sub<int32>>);
+#endif // TENSORFLOW_USE_SYCL
 }  // namespace tensorflow

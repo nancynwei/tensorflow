@@ -1,28 +1,24 @@
-# tfprof: A Profiling Tool for TensorFlow Models
+# tfprof: TensorFlow Profiler and Beyond
 
-Internal User Please Use: go/tfprof
+<h1>Please use `tf.profiler.xxx` instead of `tf.contrib.tfprof.xxx`</h1>
+<h1>Full Document in <a href="https://github.com/tensorflow/tensorflow/blob/master/tensorflow/core/profiler/README.md">tensorflow/core/profiler/README.md</a><h1>
 
-Author: Xin Pan (xpan@google.com, github: panyx0718)
+### Features
 
-Consultants: Jon Shlens, Pete Warden
+* Profile model architectures
+  * parameters, tensor shapes, float operations, device placement, etc.
+* Profile model performance
+  * execution time, memory consumption
+  * Profile multiple steps.
+* Auto profile and advise.
+  * accelerator utilization check
+  * expensive operation check
+  * operation configuration check
+  * distributed runtime check (Not OSS)
 
+### Interfaces
 
-## Introduction
-
-tfprof is a profiling tool for TensorFlow that analyzes model architectures
-and measures system performance.
-
-###Major Features
-
-1.  Measure model parameters, float operations, tensor shapes.
-2.  Measure op execution times, requested memory size and device placement.
-3.  Inspect checkpoint tensors' shapes and their values.
-4.  Explore model based on name scope or graph structure.
-5.  Selectively grouping/filtering/accounting/ordering ops.
-
-tfprof can be used as CommandLine Interface (CLI) and Python API.
-CLI locates in tensorflow/tools/tfprof.
-Python API locates in tensorflow/contrib/tfprof.
-Tutorial locates in tensorflow/tools/tfprof/README.md
-
-Enjoy!
+* Python API
+* Command Line
+* Visualization
+* C++ API (Not public, contact us if needed.)

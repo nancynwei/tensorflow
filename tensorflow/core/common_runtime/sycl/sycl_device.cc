@@ -23,25 +23,7 @@ limitations under the License.
 
 namespace tensorflow {
 
-cl::sycl::gpu_selector s;
-cl::sycl::queue q(s);
-
-SYCLDevice::SYCLDevice(const SessionOptions& options, const string& name,
-                       Bytes memory_limit, const DeviceLocality& locality,
-                       const string& physical_device_desc, Allocator* allocator)
-    : LocalDevice(options,
-                  Device::BuildDeviceAttributes(name, DEVICE_SYCL, memory_limit,
-                                                locality, physical_device_desc),
-                  allocator),
-      allocator_(allocator),
-      device_context_(new SYCLDeviceContext()),
-      device_(q) {
-  set_eigen_sycl_device(&device_);
-}
-
-SYCLDevice::~SYCLDevice() {
-  device_context_->Unref();
-}
+SYCLDevice::~SYCLDevice() {}
 
 void SYCLDevice::Compute(OpKernel* op_kernel, OpKernelContext* context) {
   assert(context);
@@ -55,23 +37,46 @@ void SYCLDevice::Compute(OpKernel* op_kernel, OpKernelContext* context) {
 }
 
 Allocator* SYCLDevice::GetAllocator(AllocatorAttributes attr) {
-  return allocator_;
+  if (attr.on_host())
+    return cpu_allocator_;
+  else
+    return sycl_allocator_;
 }
 
 Status SYCLDevice::MakeTensorFromProto(const TensorProto& tensor_proto,
                                        const AllocatorAttributes alloc_attrs,
                                        Tensor* tensor) {
+  AllocatorAttributes attr;
+  attr.set_on_host(true);
+  Allocator* host_alloc = GetAllocator(attr);
+
   Tensor parsed(tensor_proto.dtype());
-  if (!parsed.FromProto(cpu_allocator(), tensor_proto)) {
+  if (!parsed.FromProto(host_alloc, tensor_proto)) {
     return errors::InvalidArgument("Cannot parse tensor from proto: ",
-                                   ProtoDebugString(tensor_proto));
+                                   tensor_proto.DebugString());
   }
-  *tensor = std::move(parsed);
-  return Status::OK();
+  Status status;
+  if (alloc_attrs.on_host()) {
+    *tensor = parsed;
+  } else {
+    Tensor copy(GetAllocator(alloc_attrs), parsed.dtype(), parsed.shape());
+
+    // If the tensor is not initialized, we likely ran out of memory.
+    if (!copy.IsInitialized()) {
+      return errors::ResourceExhausted(
+          "OOM when allocating tensor of shape ", parsed.shape().DebugString(),
+          " and type ", DataTypeString(parsed.dtype()));
+    }
+
+    device_context_->CopyCPUTensorToDevice(
+        &parsed, this, &copy, [&status](const Status& s) { status = s; });
+    *tensor = copy;
+  }
+  return status;
 }
 
 Status SYCLDevice::FillContextMap(const Graph* graph,
-				  DeviceContextMap* device_context_map) {
+                                  DeviceContextMap* device_context_map) {
   // Fill in the context map.  It is OK for this map to contain
   // duplicate DeviceContexts so long as we increment the refcount.
   device_context_map->resize(graph->num_node_ids());
@@ -81,6 +86,15 @@ Status SYCLDevice::FillContextMap(const Graph* graph,
   }
 
   return Status::OK();
+}
+
+Status SYCLDevice::Sync() {
+  sycl_allocator_->Synchronize();
+  if (sycl_allocator_->Ok()) {
+    return Status::OK();
+  } else {
+    return errors::Internal("Unknown error detected on device ", name());
+  }
 }
 
 }  // namespace tensorflow
